@@ -3,43 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <title>ZoneAdorn JSON Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #fafafa; padding: 30px; }
+    button { padding: 10px 20px; background: #2b7dfa; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    pre { background: #f1f1f1; padding: 15px; border-radius: 8px; margin-top: 20px; max-height: 400px; overflow-y: auto; }
+  </style>
 </head>
 <body>
-  <h2>Auto JSON Generator for Blogger Sitemap</h2>
+  <h2>🔗 ZoneAdorn Auto JSON Generator</h2>
+  <p>Click below to fetch all published posts from your Blogger sitemap:</p>
   <button id="generate">Generate JSON</button>
-  <pre id="output" style="background:#f3f3f3; padding:10px; border-radius:6px;"></pre>
+  <pre id="output">Waiting for action...</pre>
 
   <script>
     async function generateJSON() {
       const sitemapURL = "https://www.zoneadorn.com/sitemap.xml";
-      const response = await fetch(sitemapURL);
-      const xmlText = await response.text();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(xmlText, "text/xml");
+      const proxyURL = `https://api.allorigins.win/get?url=${encodeURIComponent(sitemapURL)}`;
+      document.getElementById("output").textContent = "Fetching data...";
 
-      const urls = xml.querySelectorAll("url");
-      const posts = [];
+      try {
+        const response = await fetch(proxyURL);
+        const data = await response.json();
+        const xmlText = data.contents;
 
-      urls.forEach(urlNode => {
-        const loc = urlNode.querySelector("loc")?.textContent;
-        const title = loc.split("/").pop().replace(/[-_]/g, " ").replace(/\.html$/, "").trim();
-        if (loc && !loc.includes("/search/") && !loc.includes("/feeds/")) {
-          posts.push({
-            keyword: title,
-            url: loc
-          });
-        }
-      });
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlText, "text/xml");
 
-      const jsonOutput = JSON.stringify(posts, null, 2);
-      document.getElementById("output").textContent = jsonOutput;
+        const urls = xml.querySelectorAll("url");
+        const posts = [];
 
-      // Optional: Download JSON file
-      const blob = new Blob([jsonOutput], { type: "application/json" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "published-posts.json";
-      link.click();
+        urls.forEach(urlNode => {
+          const loc = urlNode.querySelector("loc")?.textContent;
+          if (loc && !loc.includes("/search/") && !loc.includes("/feeds/")) {
+            const title = loc.split("/").pop().replace(/[-_]/g, " ").replace(/\.html$/, "").trim();
+            posts.push({
+              keyword: title,
+              url: loc
+            });
+          }
+        });
+
+        const jsonOutput = JSON.stringify(posts, null, 2);
+        document.getElementById("output").textContent = jsonOutput;
+
+        // auto download
+        const blob = new Blob([jsonOutput], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "published-posts.json";
+        link.click();
+
+      } catch (error) {
+        document.getElementById("output").textContent = "⚠️ Error fetching sitemap.\n\n" + error;
+      }
     }
 
     document.getElementById("generate").addEventListener("click", generateJSON);
