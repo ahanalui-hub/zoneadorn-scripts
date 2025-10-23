@@ -18,13 +18,13 @@
   <script>
     async function generateJSON() {
       const sitemapURL = "https://www.zoneadorn.com/sitemap.xml";
-      const proxyURL = `https://api.allorigins.win/get?url=${encodeURIComponent(sitemapURL)}`;
-      document.getElementById("output").textContent = "Fetching data...";
+      const proxyURL = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(sitemapURL)}`;
+      const output = document.getElementById("output");
+      output.textContent = "Fetching sitemap... please wait ⏳";
 
       try {
-        const response = await fetch(proxyURL);
-        const data = await response.json();
-        const xmlText = data.contents;
+        const res = await fetch(proxyURL);
+        const xmlText = await res.text();
 
         const parser = new DOMParser();
         const xml = parser.parseFromString(xmlText, "text/xml");
@@ -32,29 +32,25 @@
         const urls = xml.querySelectorAll("url");
         const posts = [];
 
-        urls.forEach(urlNode => {
-          const loc = urlNode.querySelector("loc")?.textContent;
+        urls.forEach(u => {
+          const loc = u.querySelector("loc")?.textContent;
           if (loc && !loc.includes("/search/") && !loc.includes("/feeds/")) {
             const title = loc.split("/").pop().replace(/[-_]/g, " ").replace(/\.html$/, "").trim();
-            posts.push({
-              keyword: title,
-              url: loc
-            });
+            posts.push({ keyword: title, url: loc });
           }
         });
 
-        const jsonOutput = JSON.stringify(posts, null, 2);
-        document.getElementById("output").textContent = jsonOutput;
+        const jsonText = JSON.stringify(posts, null, 2);
+        output.textContent = jsonText;
 
-        // auto download
-        const blob = new Blob([jsonOutput], { type: "application/json" });
+        const blob = new Blob([jsonText], { type: "application/json" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = "published-posts.json";
         link.click();
 
-      } catch (error) {
-        document.getElementById("output").textContent = "⚠️ Error fetching sitemap.\n\n" + error;
+      } catch (err) {
+        output.textContent = "⚠️ Error: Could not fetch sitemap.\n\n" + err;
       }
     }
 
