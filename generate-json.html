@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ZoneAdorn JSON Generator</title>
+</head>
+<body>
+  <h2>Auto JSON Generator for Blogger Sitemap</h2>
+  <button id="generate">Generate JSON</button>
+  <pre id="output" style="background:#f3f3f3; padding:10px; border-radius:6px;"></pre>
+
+  <script>
+    async function generateJSON() {
+      const sitemapURL = "https://www.zoneadorn.com/sitemap.xml";
+      const response = await fetch(sitemapURL);
+      const xmlText = await response.text();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, "text/xml");
+
+      const urls = xml.querySelectorAll("url");
+      const posts = [];
+
+      urls.forEach(urlNode => {
+        const loc = urlNode.querySelector("loc")?.textContent;
+        const title = loc.split("/").pop().replace(/[-_]/g, " ").replace(/\.html$/, "").trim();
+        if (loc && !loc.includes("/search/") && !loc.includes("/feeds/")) {
+          posts.push({
+            keyword: title,
+            url: loc
+          });
+        }
+      });
+
+      const jsonOutput = JSON.stringify(posts, null, 2);
+      document.getElementById("output").textContent = jsonOutput;
+
+      // Optional: Download JSON file
+      const blob = new Blob([jsonOutput], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "published-posts.json";
+      link.click();
+    }
+
+    document.getElementById("generate").addEventListener("click", generateJSON);
+  </script>
+</body>
+</html>
