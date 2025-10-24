@@ -1,77 +1,85 @@
-(function() {
-  var maxLinksPerKeyword = 2;
-  var minPartialWords = 2;
-  var excludeSelectors = ['.sidebar', '.footer', '.header'];
+// Auto Internal Link Script for Blogger
+const JSON_URL = "https://ahanalui-hub.github.io/zoneadorn-scripts/published-posts.json";
+const MAX_LINKS_PER_KEYWORD = 1;
+const MIN_PARTIAL_WORDS = 2;
+const EXCLUDE_SELECTORS = [".post-body a", ".toc", "pre", "code", "blockquote"];
 
-  function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// 🔹 Load all published post data from GitHub JSON
+async function fetchPublishedPosts() {
+  try {
+    const response = await fetch(JSON_URL);
+    if (!response.ok) throw new Error("Failed to fetch JSON file");
+    const posts = await response.json();
+    console.log("✅ JSON Loaded Successfully:", posts.length, "posts found.");
+    return posts;
+  } catch (error) {
+    console.error("❌ Error loading JSON:", error);
+    return [];
   }
+}
 
-  function addLinks(html, posts) {
-    for (var i = 0; i < posts.length; i++) {
-      var post = posts[i];
-      var linksAdded = 0;
-      var targetAttr = post.nofollow ? ' rel="nofollow noopener noreferrer"' : ' rel="noopener noreferrer"';
+// 🔹 Add internal links dynamically
+function addInternalLinks(html, posts) {
+  let linksAdded = 0;
 
-      // Full match
-      var fullRegex = new RegExp("\\b(" + escapeRegex(post.keyword) + ")\\b", "gi");
-      html = html.replace(fullRegex, function(match) {
-        if (linksAdded < maxLinksPerKeyword) {
-          linksAdded++;
-          return '<a href="' + post.url + '" target="_blank"' + targetAttr + '>' + match + '</a>';
-        }
-        return match;
-      });
+  posts.forEach(post => {
+    if (linksAdded >= MAX_LINKS_PER_KEYWORD) return;
+    const { keyword, url } = post;
 
-      // Partial match
-      if (linksAdded < maxLinksPerKeyword) {
-        var words = post.keyword.split(" ");
-        var filtered = [];
-        for (var w = 0; w < words.length; w++) {
-          if (words[w].length >= minPartialWords) filtered.push(words[w]);
-        }
-        if (filtered.length >= minPartialWords) {
-          var partialPattern = filtered.map(escapeRegex).join("|");
-          var partialRegex = new RegExp("\\b(" + partialPattern + ")\\b", "gi");
-          html = html.replace(partialRegex, function(match) {
-            if (linksAdded < maxLinksPerKeyword) {
-              linksAdded++;
-              return '<a href="' + post.url + '" target="_blank"' + targetAttr + '>' + match + '</a>';
-            }
-            return match;
-          });
-        }
+    // Skip empty keywords
+    if (!keyword || !url) return;
+
+    // Full match (exact keyword)
+    const fullRegex = new RegExp(`\\b(${keyword})\\b`, "gi");
+    html = html.replace(fullRegex, match => {
+      if (linksAdded < MAX_LINKS_PER_KEYWORD) {
+        linksAdded++;
+        console.log("🔗 Full Match:", match, "→", url);
+        return `<a href="${url}" target="_blank">${match}</a>`;
+      }
+      return match;
+    });
+
+    // Partial match (any word inside keyword)
+    if (linksAdded < MAX_LINKS_PER_KEYWORD) {
+      const words = keyword.split(" ").filter(w => w.length >= MIN_PARTIAL_WORDS);
+      if (words.length >= MIN_PARTIAL_WORDS) {
+        const partialRegex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
+        html = html.replace(partialRegex, match => {
+          if (linksAdded < MAX_LINKS_PER_KEYWORD) {
+            linksAdded++;
+            console.log("🟡 Partial Match:", match, "→", url);
+            return `<a href="${url}" target="_blank">${match}</a>`;
+          }
+          return match;
+        });
       }
     }
-    return html;
+  });
+
+  return html;
+}
+
+// 🔹 Initialize after content loads
+async function initAutoInternalLinks() {
+  const posts = await fetchPublishedPosts();
+  if (!posts.length) {
+    console.warn("⚠️ No posts found for linking!");
+    return;
   }
 
-  function fetchPosts(callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "https://www.zoneadorn.com/published-posts.json", true);
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4 && xhr.status === 200) {
-        try {
-          var data = JSON.parse(xhr.responseText);
-          callback(data);
-        } catch(e) { console.log("JSON Parse Error"); }
-      }
-    };
-    xhr.send();
-  }
+  const postBody = document.querySelector(".post-body");
+  if (!postBody) return;
 
-  function initAutoLinking() {
-    fetchPosts(function(posts) {
-      if (!posts || !posts.length) return;
-      var postBody = document.querySelector(".post-body");
-      if (!postBody) return;
-      for (var e = 0; e < excludeSelectors.length; e++) {
-        var ex = postBody.querySelector(excludeSelectors[e]);
-        if (ex) ex.innerHTML = '';
-      }
-      postBody.innerHTML = addLinks(postBody.innerHTML, posts);
-    });
-  }
+  // Exclude unwanted selectors
+  EXCLUDE_SELECTORS.forEach(selector => {
+    postBody.querySelectorAll(selector).forEach(el => el.remove());
+  });
 
-  document.addEventListener("DOMContentLoaded", initAutoLinking);
-})();
+  // Add links
+  postBody.innerHTML = addInternalLinks(postBody.innerHTML, posts);
+  console.log("✅ Auto Internal Linking Activated!");
+}
+
+// 🔹 Run after DOM fully loaded
+document.addEventListener("DOMContentLoaded", initAutoInternalLinks);
