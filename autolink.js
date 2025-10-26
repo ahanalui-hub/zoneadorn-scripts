@@ -1,85 +1,89 @@
-// Auto Internal Link Script for Blogger
+// ✅ Auto Internal Link Script for Blogger (ZoneAdorn Edition)
 const JSON_URL = "https://ahanalui-hub.github.io/zoneadorn-scripts/published-posts.json";
 const MAX_LINKS_PER_KEYWORD = 1;
 const MIN_PARTIAL_WORDS = 2;
-const EXCLUDE_SELECTORS = [".post-body a", ".toc", "pre", "code", "blockquote"];
+const EXCLUDE_TAGS = ["A", "PRE", "CODE", "BLOCKQUOTE"];
 
-// 🔹 Load all published post data from GitHub JSON
+// 🔹 Fetch published post data from JSON
 async function fetchPublishedPosts() {
   try {
-    const response = await fetch(JSON_URL);
-    if (!response.ok) throw new Error("Failed to fetch JSON file");
-    const posts = await response.json();
-    console.log("✅ JSON Loaded Successfully:", posts.length, "posts found.");
+    const res = await fetch(JSON_URL);
+    if (!res.ok) throw new Error("Failed to load JSON");
+    const posts = await res.json();
+    console.log("✅ Loaded:", posts.length, "posts from JSON");
     return posts;
-  } catch (error) {
-    console.error("❌ Error loading JSON:", error);
+  } catch (err) {
+    console.error("❌ JSON Fetch Error:", err);
     return [];
   }
 }
 
-// 🔹 Add internal links dynamically
-function addInternalLinks(html, posts) {
-  let linksAdded = 0;
+// 🔹 Check if a node is inside excluded tag
+function isInsideExcluded(node) {
+  let parent = node.parentNode;
+  while (parent && parent.nodeType === 1) {
+    if (EXCLUDE_TAGS.includes(parent.tagName)) return true;
+    parent = parent.parentNode;
+  }
+  return false;
+}
 
+// 🔹 Main linking function
+function addInternalLinks(container, posts) {
   posts.forEach(post => {
-    if (linksAdded >= MAX_LINKS_PER_KEYWORD) return;
+    let linksAdded = 0;
     const { keyword, url } = post;
-
-    // Skip empty keywords
     if (!keyword || !url) return;
 
-    // Full match (exact keyword)
-    const fullRegex = new RegExp(`\\b(${keyword})\\b`, "gi");
-    html = html.replace(fullRegex, match => {
-      if (linksAdded < MAX_LINKS_PER_KEYWORD) {
-        linksAdded++;
-        console.log("🔗 Full Match:", match, "→", url);
-        return `<a href="${url}" target="_blank">${match}</a>`;
-      }
-      return match;
-    });
+    const regexFull = new RegExp(`\\b(${keyword})\\b`, "gi");
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
 
-    // Partial match (any word inside keyword)
-    if (linksAdded < MAX_LINKS_PER_KEYWORD) {
-      const words = keyword.split(" ").filter(w => w.length >= MIN_PARTIAL_WORDS);
-      if (words.length >= MIN_PARTIAL_WORDS) {
-        const partialRegex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
-        html = html.replace(partialRegex, match => {
+    // Collect text nodes
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!isInsideExcluded(node) && node.nodeValue.trim().length) {
+        textNodes.push(node);
+      }
+    }
+
+    // Replace text in nodes
+    textNodes.forEach(node => {
+      if (linksAdded >= MAX_LINKS_PER_KEYWORD) return;
+
+      const val = node.nodeValue;
+      if (regexFull.test(val)) {
+        const span = document.createElement("span");
+        span.innerHTML = val.replace(regexFull, match => {
           if (linksAdded < MAX_LINKS_PER_KEYWORD) {
             linksAdded++;
-            console.log("🟡 Partial Match:", match, "→", url);
-            return `<a href="${url}" target="_blank">${match}</a>`;
+            console.log(`🔗 Linked "${match}" → ${url}`);
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">${match}</a>`;
           }
           return match;
         });
+        node.replaceWith(...span.childNodes);
       }
-    }
+    });
   });
-
-  return html;
 }
 
-// 🔹 Initialize after content loads
+// 🔹 Initialize when DOM ready
 async function initAutoInternalLinks() {
   const posts = await fetchPublishedPosts();
   if (!posts.length) {
-    console.warn("⚠️ No posts found for linking!");
+    console.warn("⚠️ No JSON data found for linking!");
     return;
   }
 
   const postBody = document.querySelector(".post-body");
-  if (!postBody) return;
+  if (!postBody) {
+    console.warn("⚠️ .post-body not found on this page!");
+    return;
+  }
 
-  // Exclude unwanted selectors
-  EXCLUDE_SELECTORS.forEach(selector => {
-    postBody.querySelectorAll(selector).forEach(el => el.remove());
-  });
-
-  // Add links
-  postBody.innerHTML = addInternalLinks(postBody.innerHTML, posts);
-  console.log("✅ Auto Internal Linking Activated!");
+  addInternalLinks(postBody, posts);
+  console.log("✅ Auto Internal Linking Activated on zoneadorn.com!");
 }
 
-// 🔹 Run after DOM fully loaded
 document.addEventListener("DOMContentLoaded", initAutoInternalLinks);
